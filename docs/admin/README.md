@@ -13,10 +13,18 @@ Two objects enable it for a whole cluster, with no che-operator or DWO code chan
 
 ## Prerequisites
 
-- `persistUserHome` is enabled (the Che default). What happens when it is off is not tested.
+- **`persistUserHome` must be enabled** (the Che default). This is a hard requirement. With it off, every
+  workspace start fails at once with `container 'ai-agent-init' references undefined volume 'persistent-home'`
+  (tested). Do not add the entry on a cluster that turns `persistUserHome` off.
 - The image is pullable from every user namespace. `quay.io/okurinny/ai-agent-init` is public (anonymous pull
   checked on 2026-11-03 for amd64 and arm64, by tag and by digest). Pin by digest.
 - The image is multi-arch (amd64 and arm64). Use the same index digest in the CheCluster entry.
+- The recommended repo is readable by the init: public, or the workspaces have git credentials (the init uses the
+  git credentials DWO mounts). On a cluster without user git credentials a private default repo cannot be
+  cloned: the init reports the failure and the workspace still starts (tested).
+- Namespaces that Che provisions already carry the `che.eclipse.org/username` annotation that the ConfigMap sync
+  needs. A namespace created by hand needs it too, or the sync skips it (log line: "Username is not set for the
+  namespace. Synchronization skipped.").
 
 ## Enable
 
@@ -30,7 +38,12 @@ Two objects enable it for a whole cluster, with no che-operator or DWO code chan
 3. Start a new workspace and verify (next section).
 
 Creating a new automount ConfigMap restarted the running workspaces in a test namespace. The sync does that in
-every namespace, so apply the ConfigMap in a quiet window. This was not measured at scale.
+every namespace, so apply the ConfigMap in a quiet window. This was not measured at scale. A ConfigMap scoped with
+the annotation `controller.devfile.io/mount-to-devworkspace-include` (copied into every namespace) does not touch
+workspaces outside that scope; it is a way to try the setup on a few workspaces first.
+
+The CheCluster entry reaches the Che-managed DWOC (`devworkspace-config` in the Che namespace) within seconds.
+Running workspaces keep their pod; workspaces started afterwards get the init container.
 
 ## Verify
 
@@ -47,11 +60,15 @@ workspace, `~/.lola/.ai-agent-init-status` holds the same result. Skills are in 
 
 ## Operate
 
-- **Change the recommended repo:** edit the ConfigMap. Running workspaces keep the old value until they restart.
+- **Change the recommended repo or ref:** edit the ConfigMap. The synced copies update within seconds; running
+  workspaces keep the old value until they restart. A changed URL or ref takes the switch path on the next start
+  (old module removed, new one installed).
 - **Change the image:** build and push a new tag, read its index digest from the registry
   (`docker buildx imagetools inspect <image>:<tag>`), and replace the digest in the CheCluster entry.
-- **Roll back:** remove the entry from `initContainers`, and delete the ConfigMap so the sync removes the copies.
-  Files already installed in homes stay. Not tested.
+- **Roll back:** set `initContainers` back to its previous value (`--type merge` with `null` removes the key), and
+  delete the ConfigMap so the sync removes the copies. Both were done on a test cluster: the CheCluster spec ended
+  identical to its starting state and the copies disappeared from every namespace. Files already installed in
+  homes stay; that part was not tested.
 
 ## Developer override
 
@@ -79,23 +96,43 @@ through the git credentials the workspace already has.
 ## Failure behavior
 
 - A script failure never blocks the workspace start. It is logged and written to the status file
-  (`failed <time> origin=… reason=…`).
-- A container that cannot start at all (image not pullable, wrong architecture) does block the pod.
+  (`failed <time> origin=… reason=…`). Example, tested: a default repo that cannot be cloned.
+- A container that cannot start at all fails the workspace start quickly and with a clear message. An init image
+  that cannot be pulled ended in `Failed` after about 54 s with `Init Container ai-agent-init has state
+  ImagePullBackOff` (tested); no pod was left behind.
+- `persistUserHome` off fails every start at once (see Prerequisites).
 - An unreachable new repo during a switch leaves the existing install in place.
 - Credentials embedded in a URL are not printed or stored.
+- A hand-made workspace must carry the attributes Che sets, for example the SCC attribute for the cluster's
+  container-build setting. A workspace without it fails on the security context constraint regardless of this
+  init container.
 
 ## What was tested
 
-Tested (Docker on amd64 and arm64, and a Dev Spaces cluster with DWO 1.1.0-dev.10):
-default only, personal over default, restart, a new commit, a non-default ref, switching both ways with the old
-config removed (files, instructions block, MCP servers), an invalid MCP entry reported as a warning, an
-unreachable repo, credentials in the URL, and upgrading a home written by the first prototype.
+Tested in Docker on amd64 and arm64: default only, personal over default, restart, a new commit, a non-default
+ref, switching both ways with the old config removed (files, instructions block, MCP servers), an invalid MCP
+entry reported as a warning, an unreachable repo, credentials in the URL, items removed from the repo, and
+upgrading a home written by the first prototype.
 
-Read from the che-operator source, not tested on a cluster: the CheCluster `initContainers` field reaching all
-workspaces, and the ConfigMap sync (labels, copy, the DWO automount labels it adds).
+Tested on a Dev Spaces cluster with DWO 1.1.0-dev.10 (internal-registry copy of the image, a per-namespace DWOC):
+the same scenarios in real workspaces, including personal over default and both switches.
 
-Not tested: a private default repo for users without access, a public default repo (anonymous clone),
-`persistUserHome` off, an unpullable image or wrong architecture blocking a pod, and the restart storm at scale.
+Tested on a cluster where the tester was admin (Che 7.124.0, DWO 1.0.0, amd64 nodes):
+- the CheCluster `initContainers` entry reaching a workspace through the Che-managed DWOC, with no hand patch;
+- the ConfigMap sync: copies in every workspace namespace, the controller adding the automount labels, annotations
+  (including the include scope) copied, updates propagating, and deletion removing the copies;
+- the image pulled by digest from quay.io on an amd64 node;
+- the init running as an arbitrary UID (1000860000) and writing its files;
+- per-user storage (the home mounted at `claim-devworkspace`, subPath `<workspaceId>/persistent-home`);
+- a clean install from a public default repo, recovery after an earlier failed clone, and a ref change taking the
+  switch path;
+- a script failure not blocking the start, an unpullable image failing the start, and `persistUserHome` off failing
+  the start.
+
+Not tested: a private default repo for users who have access, the personal Secret override on the admin cluster
+(the personal repo there was private), a workspace created from the Che dashboard (the tests used hand-made
+DevWorkspaces carrying the attributes Che sets), arm64 nodes on a cluster (the arm64 image ran only in Docker), an
+image of the wrong architecture blocking a pod, and the restart storm at scale.
 
 ## Known gaps
 
