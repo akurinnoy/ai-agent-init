@@ -129,10 +129,18 @@ Tested on a cluster where the tester was admin (Che 7.124.0, DWO 1.0.0, amd64 no
 - a script failure not blocking the start, an unpullable image failing the start, and `persistUserHome` off failing
   the start.
 
-Not tested: a private default repo for users who have access, the personal Secret override on the admin cluster
-(the personal repo there was private), a workspace created from the Che dashboard (the tests used hand-made
-DevWorkspaces carrying the attributes Che sets), arm64 nodes on a cluster (the arm64 image ran only in Docker), an
-image of the wrong architecture blocking a pod, and the restart storm at scale.
+Tested on a fresh cluster of the same versions (Che 7.124.0, DWO 1.0.0, 2 amd64 nodes), applying the two files in
+this directory as written:
+- a workspace created from the Che dashboard got the init container with no hand patch (Che set the DWOC reference,
+  the `container-build` SCC attribute and per-user storage), ran it as an arbitrary UID and ended with
+  `ok origin=default mode=install warnings=0`;
+- a personal Secret restarted that workspace on its own and the init took the switch path
+  (`origin=personal mode=switch`, one module installed, no duplicate skills, both env pairs present, the personal
+  pair won). The Secret pointed at the same public repo spelled without `.git`, because the tester's own repo was
+  private and cannot be cloned there; a switch to a different repo was tested on the other clusters.
+
+Not tested: a private default repo for users who have access, arm64 nodes on a cluster (the arm64 image ran only in
+Docker), an image of the wrong architecture blocking a pod, and the restart storm at scale.
 
 ## Known gaps
 
