@@ -15,6 +15,14 @@ servers) to a Dev Spaces workspace (CRW-12369). It clones a config repo in the
 The personal pair wins when set, otherwise the default pair is used. The ref always comes from the pair
 the URL came from. Nothing set: the init does nothing.
 
+Each pair is a repo and a ref:
+
+- `…_REPO_URL`: the git URL of the config repo, for example `https://github.com/<org>/<repo>.git`.
+- `…_REPO_REF`: the git ref to check out. A branch name, a tag or a commit SHA, for example `main` or `v1.2.0`.
+  Optional: with no ref the init clones the repo's default branch.
+- The ref is a separate variable because Lola takes it as `--ref`. Changing only the ref (another branch or tag)
+  takes the same switch path as changing the URL.
+
 ## What it does on each start
 
 - **install**: nothing installed yet. `lola mod add`, `lola install -a claude-code -s user`.
