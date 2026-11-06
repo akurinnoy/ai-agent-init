@@ -10,6 +10,10 @@
 #   AI_CONFIG_DEFAULT_REPO_URL (+ AI_CONFIG_DEFAULT_REPO_REF) default: the admin's ConfigMap
 # Neither set: do nothing. The ref always comes from the same pair as the URL.
 #
+# Opt-out: AI_CONFIG_DISABLED=true (exactly "true") turns the init off. It is checked first, so it wins over
+# both pairs. Nothing is fetched or changed and config that is already installed stays in place; only the
+# status file is written. Unset the variable and the next start picks up from the recorded source.
+#
 # Start modes (decided from the source recorded after the last successful run):
 #   install  nothing installed yet
 #   update   same source: lola mod update + lola update
@@ -36,6 +40,13 @@ lcmd() { timeout "${LOLA_TIMEOUT:-120}" "$@" >> "$LOG" 2>&1; }
 modules() { ls -1 "$STATE/modules" 2>/dev/null; }
 
 cd "$HOME" 2>/dev/null || { say "FAILED: cannot cd to HOME"; exit 0; }
+
+if [ "${AI_CONFIG_DISABLED:-}" = true ]; then
+  say "disabled by AI_CONFIG_DISABLED=true; installed config is left untouched, nothing fetched"
+  write_status "ok $(date -u +%FT%TZ) disabled"
+  exit 0
+fi
+[ -z "${AI_CONFIG_DISABLED:-}" ] || say "AI_CONFIG_DISABLED=$AI_CONFIG_DISABLED ignored: only the value true disables the init"
 
 if [ -n "${AI_CONFIG_REPO_URL:-}" ]; then
   ORIGIN=personal; URL=$AI_CONFIG_REPO_URL; REF=${AI_CONFIG_REPO_REF:-}
