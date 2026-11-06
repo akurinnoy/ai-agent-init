@@ -56,3 +56,12 @@ IMG=ai-agent-init:dev-amd64 PLATFORM=linux/amd64 tests/run-tests.sh
 The tests need Docker and git. They build local fixture repos, run the image against them as uid 1000 and
 check the files in the home volume (install, restart, new commit, non-default ref, personal over default and
 back, unreachable repo, credentials in URLs, invalid MCP entries, items removed from the repo).
+
+The two Python helpers (`adapt_mcp.py`, `lola_warnings.py`) also have unit tests that need no Docker and no
+dependencies (standard library only):
+
+```
+python3 -m unittest discover -s tests/unit -v
+```
+
+GitHub Actions runs both layers on every pull request and on pushes to `main` (`.github/workflows/ci.yml`).

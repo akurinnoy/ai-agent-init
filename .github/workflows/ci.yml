@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit tests (adapt_mcp.py, lola_warnings.py)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: python3 -m unittest discover -s tests/unit -v
+
+  integration:
+    name: Docker tests (linux/amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: docker buildx build --platform linux/amd64 --load -t ai-agent-init:dev-amd64 .
+      - run: IMG=ai-agent-init:dev-amd64 PLATFORM=linux/amd64 bash tests/run-tests.sh
