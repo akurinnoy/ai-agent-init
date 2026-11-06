@@ -11,9 +11,16 @@ servers) to a Dev Spaces workspace. It clones a config repo in the
 |---|---|---|
 | `AI_CONFIG_REPO_URL`, `AI_CONFIG_REPO_REF` | the user (Secret in their namespace) | personal config repo |
 | `AI_CONFIG_DEFAULT_REPO_URL`, `AI_CONFIG_DEFAULT_REPO_REF` | the admin (ConfigMap synced to every namespace) | recommended default |
+| `AI_CONFIG_DISABLED` | the user (same Secret) | `true` turns the init off |
 
 The personal pair wins when set, otherwise the default pair is used. The ref always comes from the pair
 the URL came from. Nothing set: the init does nothing.
+
+`AI_CONFIG_DISABLED=true` is the opt-out. It is checked first, so it wins over both pairs: the init fetches
+nothing, changes nothing and writes only the status file (`ok <time> disabled`). Config that is already
+installed stays in place (it is not uninstalled), and a new workspace home gets none. Remove the variable and the
+next start continues from the recorded source (update path, or switch if the source changed). Only the exact
+value `true` counts; any other non-empty value is ignored and the init logs that.
 
 Each pair is a repo and a ref:
 
@@ -35,8 +42,8 @@ syncs them and remembers which names it added, so a removed or switched-away ser
 `lola_warnings.py` reports entries Lola dropped (Lola itself prints these only during `mod add`).
 
 It never fails the workspace start because of a script failure: every failure path exits 0. The result is in
-`~/.lola/.ai-agent-init-status` (`ok|failed <time> <module> origin=… mode=… warnings=… url=…`). URLs are printed
-and stored without embedded credentials.
+`~/.lola/.ai-agent-init-status` (`ok|failed <time> <module> origin=… mode=… warnings=… url=…`, or
+`ok <time> disabled` when opted out). URLs are printed and stored without embedded credentials.
 
 ## Limits
 
@@ -55,7 +62,7 @@ IMG=ai-agent-init:dev-amd64 PLATFORM=linux/amd64 tests/run-tests.sh
 
 The tests need Docker and git. They build local fixture repos, run the image against them as uid 1000 and
 check the files in the home volume (install, restart, new commit, non-default ref, personal over default and
-back, unreachable repo, credentials in URLs, invalid MCP entries, items removed from the repo).
+back, unreachable repo, credentials in URLs, invalid MCP entries, items removed from the repo, opt-out).
 
 The two Python helpers (`adapt_mcp.py`, `lola_warnings.py`) also have unit tests that need no Docker and no
 dependencies (standard library only):

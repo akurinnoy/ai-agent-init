@@ -149,6 +149,8 @@ Docker), an image of the wrong architecture blocking a pod, and the restart stor
 
 ## Known gaps
 
-- No per-user opt-out. A developer can replace the recommended repo but cannot say "no config".
+- A developer can opt out with `AI_CONFIG_DISABLED=true` in their Secret (see the developer guide, section 4). It
+  stops the init from fetching or changing anything, but does not uninstall config that is already in the workspace
+  home; a new workspace gets none. An admin cannot force the init on for a developer who sets it.
 - Claude Code only. `settings.json` (hooks, permissions, env) is not carried.
 - Users cannot edit the synced ConfigMap copy. How the controller reverts edits was not read in detail.

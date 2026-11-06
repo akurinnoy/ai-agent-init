@@ -213,5 +213,31 @@ runinit t11 AI_CONFIG_DEFAULT_REPO_URL=/src/E.git
 t_rc0 T11b; t_no_srv t11 e-srv2; t_srv t11 e-srv
 if inh t11 'test -e ~/.claude/skills/e-extra' >/dev/null 2>&1; then info "T11 a skill removed from the repo STAYS in ~/.claude/skills after update (Lola does not prune)"; else info "T11 a skill removed from the repo is removed by update"; fi
 
+echo "T12 opt-out with AI_CONFIG_DISABLED=true"
+newhome t12a; runinit t12a AI_CONFIG_DISABLED=true AI_CONFIG_REPO_URL=/src/nope.git
+t_rc0 T12a; t_out "T12 says it is disabled" "disabled by AI_CONFIG_DISABLED=true"
+t_no_out "T12 never tried the (unreachable) repo" "FAILED"
+t_in t12a "T12 status says ok disabled" 'grep -Eq "^ok [^ ]+ disabled$" ~/.lola/.ai-agent-init-status'
+t_in t12a "T12 nothing registered" 'test -z "$(ls ~/.lola/modules 2>/dev/null)"'
+newhome t12b; seed_user t12b
+runinit t12b AI_CONFIG_DEFAULT_REPO_URL=/src/D.git
+t_rc0 T12b-install; t_in t12b "T12 default installed first" 'grep -q "Marker: D2" ~/.claude/skills/d-skill/SKILL.md'
+bump D d D3
+runinit t12b AI_CONFIG_DISABLED=true AI_CONFIG_DEFAULT_REPO_URL=/src/D.git
+t_rc0 T12b-disabled; t_out "T12 disabled after an install" "left untouched"
+t_in t12b "T12 installed config left in place" 'grep -q "Marker: D2" ~/.claude/skills/d-skill/SKILL.md && test -f ~/.claude/agents/d-agent.md'
+t_srv t12b d-srv; t_user_kept t12b
+t_in t12b "T12 no update happened (new commit not picked up)" '! grep -q "Marker: D3" ~/.claude/skills/d-skill/SKILL.md'
+runinit t12b AI_CONFIG_DISABLED=true AI_CONFIG_REPO_URL=/src/P.git AI_CONFIG_DEFAULT_REPO_URL=/src/D.git
+t_rc0 T12b-beats-personal; t_in t12b "T12 the flag beats a personal repo (no switch)" 'test ! -e ~/.claude/skills/p-skill && test -f ~/.claude/skills/d-skill/SKILL.md'
+runinit t12b AI_CONFIG_DEFAULT_REPO_URL=/src/D.git
+t_rc0 T12b-reenable; t_out "T12 re-enable resumes on the update path" "origin=default mode=update"
+t_in t12b "T12 re-enable picked up the new commit" 'grep -q "Marker: D3" ~/.claude/skills/d-skill/SKILL.md'
+newhome t12c; runinit t12c AI_CONFIG_DISABLED=false AI_CONFIG_DEFAULT_REPO_URL=/src/D.git
+t_rc0 T12c; t_out "T12 value false does not disable" "origin=default mode=install"; t_out "T12 value false is reported as ignored" "ignored"
+t_in t12c "T12 value false: config installed" 'test -f ~/.claude/skills/d-skill/SKILL.md'
+newhome t12d; runinit t12d AI_CONFIG_DISABLED= AI_CONFIG_DEFAULT_REPO_URL=/src/D.git
+t_rc0 T12d; t_out "T12 empty value does not disable" "origin=default mode=install"; t_no_out "T12 empty value is not reported" "ignored"
+
 echo; echo "passed: $PASS   failed: $FAIL"
 [ "$FAIL" = 0 ]
