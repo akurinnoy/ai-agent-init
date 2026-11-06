@@ -1,0 +1,116 @@
+# Developer guide: your own agent config in every workspace
+
+`ai-agent-init` installs your skills, agents, instructions and MCP servers into `~/.claude` and `~/.claude.json`
+at every workspace start. Claude Code only for now. If your admin set a recommended repo you already get that;
+the steps below replace it with yours. See the [admin guide](../admin/README.md) for how it is enabled.
+
+## 1. Make a config repo
+
+Use the [agent-plugin](https://agent-plugins.org) layout:
+
+```
+plugin.json
+skills/<name>/SKILL.md
+dev.getlola/agents/<name>.md
+dev.getlola/AGENTS.md
+mcp.json
+```
+
+`plugin.json`:
+
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "my-agent-config",
+  "version": "0.1.0",
+  "description": "My agent configuration.",
+  "extensions": {
+    "dev.getlola": {
+      "agents": "./dev.getlola/agents",
+      "instructions": "./dev.getlola/AGENTS.md"
+    }
+  }
+}
+```
+
+`mcp.json` (optional):
+
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "my-local-server": {"type": "stdio", "command": "npx", "args": ["--package", "some-package@1.2.3", "some-bin"]},
+    "my-remote-server": {"type": "streamable-http", "url": "https://example.com/mcp"}
+  }
+}
+```
+
+Rules that cost real debugging time:
+
+- **No secrets.** Everything in the repo, including `env` values in `mcp.json`, ends up in git and in `~/.claude.json`.
+- **Remote servers use `type: streamable-http`** (or `sse`). `http` is not an agent-plugin type: Lola drops the entry.
+  The init now logs it as a warning (see "Check it worked").
+- **stdio servers:** `command` is one bare executable name (no spaces, no path). `cwd` is accepted by Lola but is
+  not copied into `~/.claude.json`.
+- **Use distinctive names.** Lola overwrites a same-named skill or agent without asking. The init also manages the
+  MCP server names it adds: do not reuse the name of a server you added by hand.
+- **Do not edit inside the Lola block** of `~/.claude/CLAUDE.md` (it holds `dev.getlola/AGENTS.md`). Edits there are lost on the next update.
+- **Not carried:** `settings.json` (hooks, permissions, env). Keep paths portable (no `/Users/...`).
+
+## 2. Point your workspaces at it
+
+Create this Secret in your namespace, then restart the workspace:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-agent-config-repo
+  labels:
+    controller.devfile.io/mount-to-devworkspace: "true"
+    controller.devfile.io/watch-secret: "true"
+  annotations:
+    controller.devfile.io/mount-as: env
+stringData:
+  # Your config repo: a git URL.
+  AI_CONFIG_REPO_URL: https://github.com/<you>/<config-repo>.git
+  # The git ref to check out: a branch name, a tag or a commit SHA (for example main or v1.2.0).
+  # Optional: leave it out to use the repo's default branch.
+  AI_CONFIG_REPO_REF: main
+```
+
+The Secret mounts into **every workspace in the namespace**. To limit it, add the annotation
+`controller.devfile.io/mount-to-devworkspace-include: name1,prefix-*` (and `-exclude` to leave some out).
+A private repo works through the git credentials your workspace already has; a public one needs none.
+
+## 3. Check it worked
+
+- `cat ~/.lola/.ai-agent-init-status` should read `ok <time> <module> origin=personal mode=install warnings=0`.
+- `ls ~/.claude/skills ~/.claude/agents` lists your items, and `claude mcp list` lists your servers (a remote
+  server may ask you to log in).
+- The init log has the details: `oc logs <workspace pod> -c ai-agent-init`.
+- `warnings=N` with `N` above 0 means Lola dropped entries. The log lines that start with `[ai-agent-init] lola:`
+  name them, for example `mcp.json: server 'x': unsupported type`.
+
+## 4. Change or remove it
+
+- **Update:** push to your repo and restart the workspace. New commits arrive, and skills you deleted from the repo
+  are removed.
+- **Another branch or tag:** change `AI_CONFIG_REPO_REF`.
+- **Another repo:** change `AI_CONFIG_REPO_URL`. The init removes the old config completely, then installs the new one.
+- **Back to the recommended repo:** delete the Secret and restart the workspace.
+- **No recommended repo exists:** with no URL set the init does nothing, and files already installed stay (this
+  last part is not tested).
+
+## When something is wrong
+
+| You see | Meaning | Do |
+|---|---|---|
+| `failed … reason=lola mod add`, log has `could not read Username` | the repo is private and the workspace has no git credentials | make the repo public, or add git credentials |
+| `new config source is not reachable; kept the existing install` | wrong URL or no access; your old config is still there | fix the URL or access, restart |
+| `warnings=N` with `N` above 0 | Lola dropped entries | read the `[ai-agent-init] lola:` lines |
+| no status file, nothing installed | no URL reached the workspace, or the admin did not enable the init container | check the Secret labels, then ask your admin |
+
+A failing init never stops the workspace from starting. A broken init image does, and so does a cluster with
+`persistUserHome` off (the init container mounts `persistent-home`, which then does not exist): that is an admin
+matter (see the admin guide).
