@@ -72,7 +72,10 @@ metadata:
   annotations:
     controller.devfile.io/mount-as: env
 stringData:
+  # Your config repo: a git URL.
   AI_CONFIG_REPO_URL: https://github.com/<you>/<config-repo>.git
+  # The git ref to check out: a branch name, a tag or a commit SHA (for example main or v1.2.0).
+  # Optional: leave it out to use the repo's default branch.
   AI_CONFIG_REPO_REF: main
 ```
 

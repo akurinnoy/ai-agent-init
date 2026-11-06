@@ -18,5 +18,8 @@ metadata:
   annotations:
     controller.devfile.io/mount-as: env
 data:
+  # The repo to install: a git URL.
   AI_CONFIG_DEFAULT_REPO_URL: https://github.com/<org>/<repo>.git
+  # The git ref to check out: a branch name, a tag or a commit SHA (for example main or v1.2.0).
+  # Optional: remove the line to use the repo's default branch.
   AI_CONFIG_DEFAULT_REPO_REF: main
