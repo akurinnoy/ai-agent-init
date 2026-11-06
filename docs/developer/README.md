@@ -108,5 +108,6 @@ A private repo works through the git credentials your workspace already has; a p
 | `warnings=N` with `N` above 0 | Lola dropped entries | read the `[ai-agent-init] lola:` lines |
 | no status file, nothing installed | no URL reached the workspace, or the admin did not enable the init container | check the Secret labels, then ask your admin |
 
-A failing init never stops the workspace from starting. A broken init image or a cluster with `persistUserHome`
-off does: that is an admin matter (see the admin guide).
+A failing init never stops the workspace from starting. A broken init image does, and so does a cluster with
+`persistUserHome` off (the init container mounts `persistent-home`, which then does not exist): that is an admin
+matter (see the admin guide).

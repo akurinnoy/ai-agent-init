@@ -13,9 +13,10 @@ Two objects enable it for a whole cluster, with no che-operator or DWO code chan
 
 ## Prerequisites
 
-- **`persistUserHome` must be enabled** (the Che default). This is a hard requirement. With it off, every
-  workspace start fails at once with `container 'ai-agent-init' references undefined volume 'persistent-home'`
-  (tested). Do not add the entry on a cluster that turns `persistUserHome` off.
+- **`persistUserHome` must be enabled** (the Che default). The `ai-agent-init` entry mounts `persistent-home`, a
+  volume DWO defines only when `persistUserHome` is enabled. With it off, every workspace start fails at once with
+  `container 'ai-agent-init' references undefined volume 'persistent-home'` (tested). Do not add the entry on a
+  cluster that turns `persistUserHome` off.
 - The image is pullable from every user namespace. `quay.io/okurinny/ai-agent-init` is public (anonymous pull
   checked on 2026-11-03 for amd64 and arm64, by tag and by digest). Pin by digest.
 - The image is multi-arch (amd64 and arm64). Use the same index digest in the CheCluster entry.
@@ -100,7 +101,8 @@ through the git credentials the workspace already has.
 - A container that cannot start at all fails the workspace start quickly and with a clear message. An init image
   that cannot be pulled ended in `Failed` after about 54 s with `Init Container ai-agent-init has state
   ImagePullBackOff` (tested); no pod was left behind.
-- `persistUserHome` off fails every start at once (see Prerequisites).
+- `persistUserHome` off fails every start at once: `ai-agent-init` mounts `persistent-home`, which then does not
+  exist (see Prerequisites).
 - An unreachable new repo during a switch leaves the existing install in place.
 - Credentials embedded in a URL are not printed or stored.
 - A hand-made workspace must carry the attributes Che sets, for example the SCC attribute for the cluster's
@@ -129,10 +131,18 @@ Tested on a cluster where the tester was admin (Che 7.124.0, DWO 1.0.0, amd64 no
 - a script failure not blocking the start, an unpullable image failing the start, and `persistUserHome` off failing
   the start.
 
-Not tested: a private default repo for users who have access, the personal Secret override on the admin cluster
-(the personal repo there was private), a workspace created from the Che dashboard (the tests used hand-made
-DevWorkspaces carrying the attributes Che sets), arm64 nodes on a cluster (the arm64 image ran only in Docker), an
-image of the wrong architecture blocking a pod, and the restart storm at scale.
+Tested on a fresh cluster of the same versions (Che 7.124.0, DWO 1.0.0, 2 amd64 nodes), applying the two files in
+this directory as written:
+- a workspace created from the Che dashboard got the init container with no hand patch (Che set the DWOC reference,
+  the `container-build` SCC attribute and per-user storage), ran it as an arbitrary UID and ended with
+  `ok origin=default mode=install warnings=0`;
+- a personal Secret restarted that workspace on its own and the init took the switch path
+  (`origin=personal mode=switch`, one module installed, no duplicate skills, both env pairs present, the personal
+  pair won). The Secret pointed at the same public repo spelled without `.git`, because the tester's own repo was
+  private and cannot be cloned there; a switch to a different repo was tested on the other clusters.
+
+Not tested: a private default repo for users who have access, arm64 nodes on a cluster (the arm64 image ran only in
+Docker), an image of the wrong architecture blocking a pod, and the restart storm at scale.
 
 ## Known gaps
 
