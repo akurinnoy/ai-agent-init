@@ -13,9 +13,10 @@ Two objects enable it for a whole cluster, with no che-operator or DWO code chan
 
 ## Prerequisites
 
-- **`persistUserHome` must be enabled** (the Che default). This is a hard requirement. With it off, every
-  workspace start fails at once with `container 'ai-agent-init' references undefined volume 'persistent-home'`
-  (tested). Do not add the entry on a cluster that turns `persistUserHome` off.
+- **`persistUserHome` must be enabled** (the Che default). The `ai-agent-init` entry mounts `persistent-home`, a
+  volume DWO defines only when `persistUserHome` is enabled. With it off, every workspace start fails at once with
+  `container 'ai-agent-init' references undefined volume 'persistent-home'` (tested). Do not add the entry on a
+  cluster that turns `persistUserHome` off.
 - The image is pullable from every user namespace. `quay.io/okurinny/ai-agent-init` is public (anonymous pull
   checked on 2026-11-03 for amd64 and arm64, by tag and by digest). Pin by digest.
 - The image is multi-arch (amd64 and arm64). Use the same index digest in the CheCluster entry.
@@ -100,7 +101,8 @@ through the git credentials the workspace already has.
 - A container that cannot start at all fails the workspace start quickly and with a clear message. An init image
   that cannot be pulled ended in `Failed` after about 54 s with `Init Container ai-agent-init has state
   ImagePullBackOff` (tested); no pod was left behind.
-- `persistUserHome` off fails every start at once (see Prerequisites).
+- `persistUserHome` off fails every start at once: `ai-agent-init` mounts `persistent-home`, which then does not
+  exist (see Prerequisites).
 - An unreachable new repo during a switch leaves the existing install in place.
 - Credentials embedded in a URL are not printed or stored.
 - A hand-made workspace must carry the attributes Che sets, for example the SCC attribute for the cluster's
